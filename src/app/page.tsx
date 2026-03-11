@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -22,7 +22,6 @@ import {
 import { 
   Users, 
   Church, 
-  Download, 
   Plus, 
   Trash2, 
   Save, 
@@ -37,10 +36,12 @@ import {
   Search,
   Calendar,
   MapPin,
-  Phone,
   UserCheck,
   AlertCircle,
-  FolderOpen
+  FolderOpen,
+  Cake,
+  Gift,
+  PartyPopper
 } from 'lucide-react'
 
 // Types
@@ -144,6 +145,64 @@ const PENGHASILAN_OPTIONS = [
   'Tidak Berpenghasilan'
 ]
 
+const STORAGE_KEY = 'sensusJemaat2026_all'
+
+// Helper functions
+const calculateAge = (birthDate: string, targetYear?: number): number => {
+  if (!birthDate) return 0
+  const birth = new Date(birthDate)
+  const target = targetYear ? new Date(targetYear, 11, 31) : new Date()
+  let age = target.getFullYear() - birth.getFullYear()
+  const monthDiff = target.getMonth() - birth.getMonth()
+  if (monthDiff < 0 || (monthDiff === 0 && target.getDate() < birth.getDate())) {
+    age--
+  }
+  return age
+}
+
+const calculateMarriageDuration = (marriageDate: string, targetYear?: number): number => {
+  if (!marriageDate) return 0
+  const marriage = new Date(marriageDate)
+  const target = targetYear ? new Date(targetYear, 11, 31) : new Date()
+  return target.getFullYear() - marriage.getFullYear()
+}
+
+const formatDate = (dateString: string): string => {
+  if (!dateString) return '-'
+  try {
+    return new Date(dateString).toLocaleDateString('id-ID', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric'
+    })
+  } catch {
+    return dateString
+  }
+}
+
+const formatDateTime = (dateString: string): string => {
+  if (!dateString) return '-'
+  try {
+    return new Date(dateString).toLocaleDateString('id-ID', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  } catch {
+    return dateString
+  }
+}
+
+const getMonthName = (month: number): string => {
+  const months = [
+    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+  ]
+  return months[month - 1] || ''
+}
+
 const defaultMember: () => FamilyMember = () => ({
   id: Date.now(),
   nik: '',
@@ -175,8 +234,6 @@ const defaultMember: () => FamilyMember = () => ({
   keterangan: ''
 })
 
-const STORAGE_KEY = 'sensusJemaat2026_all'
-
 export default function SensusJemaatPage() {
   const printRef = useRef<HTMLDivElement>(null)
   
@@ -203,7 +260,6 @@ export default function SensusJemaatPage() {
 
   const [activeTab, setActiveTab] = useState('info')
   const [savedDataList, setSavedDataList] = useState<SavedFamilyData[]>(() => {
-    // Initialize from localStorage on first render
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem(STORAGE_KEY)
       if (saved) {
@@ -217,6 +273,13 @@ export default function SensusJemaatPage() {
   const [selectedData, setSelectedData] = useState<SavedFamilyData | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [dataToDelete, setDataToDelete] = useState<string | null>(null)
+  
+  // Report states
+  const [reportYear, setReportYear] = useState(new Date().getFullYear())
+  const [reportMonth, setReportMonth] = useState(new Date().getMonth() + 1)
+  const [reportDialogOpen, setReportDialogOpen] = useState(false)
+  const [printDialogOpen, setPrintDialogOpen] = useState(false)
+  const [dataToPrint, setDataToPrint] = useState<SavedFamilyData | null>(null)
 
   // Refresh saved data list
   const refreshSavedDataList = () => {
@@ -268,9 +331,8 @@ export default function SensusJemaatPage() {
     setSignatureInfo(prev => ({ ...prev, [field]: value }))
   }
 
-  // Save data to localStorage (add to list)
+  // Save data to localStorage
   const saveData = () => {
-    // Validate required fields
     if (!familyInfo.namaKeluarga) {
       alert('Nama Keluarga wajib diisi!')
       return
@@ -286,7 +348,7 @@ export default function SensusJemaatPage() {
 
     const existingData = localStorage.getItem(STORAGE_KEY)
     let allData: SavedFamilyData[] = existingData ? JSON.parse(existingData) : []
-    allData.unshift(newEntry) // Add to beginning
+    allData.unshift(newEntry)
     
     localStorage.setItem(STORAGE_KEY, JSON.stringify(allData))
     setSavedDataList(allData)
@@ -343,9 +405,22 @@ export default function SensusJemaatPage() {
     }
   }
 
-  // Print function
-  const handlePrint = () => {
-    window.print()
+  // Print current form
+  const handlePrintCurrent = () => {
+    setDataToPrint({
+      id: 'current',
+      savedAt: new Date().toISOString(),
+      familyInfo,
+      members,
+      signatureInfo
+    })
+    setPrintDialogOpen(true)
+  }
+
+  // Print specific saved data
+  const handlePrintData = (data: SavedFamilyData) => {
+    setDataToPrint(data)
+    setPrintDialogOpen(true)
   }
 
   // Filter data based on search
@@ -359,49 +434,84 @@ export default function SensusJemaatPage() {
     )
   })
 
-  // Format date for display
-  const formatDate = (dateString: string) => {
-    if (!dateString) return '-'
-    try {
-      return new Date(dateString).toLocaleDateString('id-ID', {
-        day: '2-digit',
-        month: 'long',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
+  // Get birthday report for month
+  const getBirthdayReport = () => {
+    const birthdays: { family: SavedFamilyData; member: FamilyMember; age: number }[] = []
+    
+    savedDataList.forEach(family => {
+      family.members.forEach(member => {
+        if (member.tanggalLahir) {
+          const birthDate = new Date(member.tanggalLahir)
+          const birthMonth = birthDate.getMonth() + 1
+          if (birthMonth === reportMonth) {
+            birthdays.push({
+              family,
+              member,
+              age: calculateAge(member.tanggalLahir, reportYear)
+            })
+          }
+        }
       })
-    } catch {
-      return dateString
-    }
+    })
+    
+    return birthdays.sort((a, b) => {
+      const dayA = new Date(a.member.tanggalLahir).getDate()
+      const dayB = new Date(b.member.tanggalLahir).getDate()
+      return dayA - dayB
+    })
+  }
+
+  // Get marriage anniversary report for month
+  const getMarriageReport = () => {
+    const marriages: { family: SavedFamilyData; duration: number }[] = []
+    
+    savedDataList.forEach(family => {
+      if (family.familyInfo.tanggalNikah) {
+        const marriageDate = new Date(family.familyInfo.tanggalNikah)
+        const marriageMonth = marriageDate.getMonth() + 1
+        if (marriageMonth === reportMonth) {
+          marriages.push({
+            family,
+            duration: calculateMarriageDuration(family.familyInfo.tanggalNikah, reportYear)
+          })
+        }
+      }
+    })
+    
+    return marriages.sort((a, b) => {
+      const dayA = new Date(a.family.familyInfo.tanggalNikah).getDate()
+      const dayB = new Date(b.family.familyInfo.tanggalNikah).getDate()
+      return dayA - dayB
+    })
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
       {/* Header */}
-      <header className="bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-700 text-white shadow-lg print:bg-white print:text-black">
+      <header className="bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-700 text-white shadow-lg print:hidden">
         <div className="max-w-7xl mx-auto px-4 py-6">
-          <div className="flex items-center justify-between print:flex-col print:gap-4">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="bg-white/20 p-3 rounded-xl print:bg-blue-100">
-                <Church className="h-8 w-8 print:text-blue-700" />
+              <div className="bg-white/20 p-3 rounded-xl">
+                <Church className="h-8 w-8" />
               </div>
               <div>
                 <h1 className="text-2xl md:text-3xl font-bold">Formulir Sensus Jemaat 2026</h1>
-                <p className="text-blue-100 print:text-gray-600">Gereja Masehi Injili di Minahasa (GMIM)</p>
+                <p className="text-blue-100">Gereja Masehi Injili di Minahasa (GMIM)</p>
               </div>
             </div>
-            <div className="flex gap-2 print:hidden">
+            <div className="flex gap-2">
               <Button variant="secondary" size="sm" onClick={saveData}>
                 <Save className="h-4 w-4 mr-2" />
                 Simpan
               </Button>
-              <Button variant="secondary" size="sm" onClick={handlePrint}>
+              <Button variant="secondary" size="sm" onClick={handlePrintCurrent}>
                 <Printer className="h-4 w-4 mr-2" />
                 Cetak
               </Button>
               <Button variant="destructive" size="sm" onClick={clearForm}>
                 <Trash2 className="h-4 w-4 mr-2" />
-                Reset Form
+                Reset
               </Button>
             </div>
           </div>
@@ -411,50 +521,50 @@ export default function SensusJemaatPage() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 py-6" ref={printRef}>
         <Tabs value={activeTab} onValueChange={setActiveTab} className="print:hidden">
-          <TabsList className="grid w-full grid-cols-4 mb-6">
-            <TabsTrigger value="info" className="flex items-center gap-2">
+          <TabsList className="grid w-full grid-cols-5 mb-6">
+            <TabsTrigger value="info" className="flex items-center gap-1 md:gap-2">
               <FileText className="h-4 w-4" />
-              <span className="hidden sm:inline">Informasi Keluarga</span>
-              <span className="sm:hidden">Info</span>
+              <span className="hidden sm:inline">Informasi</span>
             </TabsTrigger>
-            <TabsTrigger value="members" className="flex items-center gap-2">
+            <TabsTrigger value="members" className="flex items-center gap-1 md:gap-2">
               <Users className="h-4 w-4" />
-              <span className="hidden sm:inline">Anggota Keluarga</span>
-              <span className="sm:hidden">Anggota</span>
+              <span className="hidden sm:inline">Anggota</span>
             </TabsTrigger>
-            <TabsTrigger value="baptis" className="flex items-center gap-2">
+            <TabsTrigger value="baptis" className="flex items-center gap-1 md:gap-2">
               <Droplet className="h-4 w-4" />
-              <span className="hidden sm:inline">Baptis & SIDI</span>
-              <span className="sm:hidden">Baptis</span>
+              <span className="hidden sm:inline">Baptis/SIDI</span>
             </TabsTrigger>
-            <TabsTrigger value="saved" className="flex items-center gap-2">
+            <TabsTrigger value="saved" className="flex items-center gap-1 md:gap-2">
               <Database className="h-4 w-4" />
               <span className="hidden sm:inline">Data Tersimpan</span>
-              <span className="sm:hidden">Tersimpan</span>
               {savedDataList.length > 0 && (
                 <Badge variant="secondary" className="ml-1 bg-white/20">
                   {savedDataList.length}
                 </Badge>
               )}
             </TabsTrigger>
+            <TabsTrigger value="report" className="flex items-center gap-1 md:gap-2">
+              <Gift className="h-4 w-4" />
+              <span className="hidden sm:inline">Laporan</span>
+            </TabsTrigger>
           </TabsList>
 
           {/* Tab 1: Informasi Keluarga */}
           <TabsContent value="info">
             <Card className="shadow-lg border-0">
-              <CardHeader className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-t-lg print:bg-gray-100 print:text-gray-900">
+              <CardHeader className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-t-lg">
                 <CardTitle className="flex items-center gap-2">
                   <Building className="h-5 w-5" />
                   Data Keluarga
                 </CardTitle>
-                <CardDescription className="text-blue-100 print:text-gray-600">
+                <CardDescription className="text-blue-100">
                   Lengkapi informasi keluarga di bawah ini
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   <div className="space-y-2">
-                    <Label htmlFor="kolom" className="flex items-center gap-2">
+                    <Label className="flex items-center gap-2">
                       <Building className="h-4 w-4 text-blue-600" />
                       Kolom
                     </Label>
@@ -471,12 +581,11 @@ export default function SensusJemaatPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="namaKeluarga" className="flex items-center gap-2">
+                    <Label className="flex items-center gap-2">
                       <Users className="h-4 w-4 text-blue-600" />
                       Nama Keluarga *
                     </Label>
                     <Input
-                      id="namaKeluarga"
                       value={familyInfo.namaKeluarga}
                       onChange={(e) => handleFamilyInfoChange('namaKeluarga', e.target.value)}
                       placeholder="Nama Kepala Keluarga"
@@ -484,12 +593,11 @@ export default function SensusJemaatPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="nomorKK" className="flex items-center gap-2">
+                    <Label className="flex items-center gap-2">
                       <FileText className="h-4 w-4 text-blue-600" />
                       Nomor KK
                     </Label>
                     <Input
-                      id="nomorKK"
                       value={familyInfo.nomorKK}
                       onChange={(e) => handleFamilyInfoChange('nomorKK', e.target.value)}
                       placeholder="16 digit Nomor KK"
@@ -498,12 +606,11 @@ export default function SensusJemaatPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="tanggalNikah" className="flex items-center gap-2">
+                    <Label className="flex items-center gap-2">
                       <Heart className="h-4 w-4 text-blue-600" />
                       Tanggal Nikah
                     </Label>
                     <Input
-                      id="tanggalNikah"
                       type="date"
                       value={familyInfo.tanggalNikah}
                       onChange={(e) => handleFamilyInfoChange('tanggalNikah', e.target.value)}
@@ -511,12 +618,11 @@ export default function SensusJemaatPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="noSurat" className="flex items-center gap-2">
+                    <Label className="flex items-center gap-2">
                       <FileText className="h-4 w-4 text-blue-600" />
                       No. Surat Nikah
                     </Label>
                     <Input
-                      id="noSurat"
                       value={familyInfo.noSurat}
                       onChange={(e) => handleFamilyInfoChange('noSurat', e.target.value)}
                       placeholder="Nomor Surat"
@@ -524,12 +630,11 @@ export default function SensusJemaatPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="pendetaPeneguh" className="flex items-center gap-2">
+                    <Label className="flex items-center gap-2">
                       <Church className="h-4 w-4 text-blue-600" />
                       Pendeta Peneguh Nikah
                     </Label>
                     <Input
-                      id="pendetaPeneguh"
                       value={familyInfo.pendetaPeneguh}
                       onChange={(e) => handleFamilyInfoChange('pendetaPeneguh', e.target.value)}
                       placeholder="Nama Pendeta"
@@ -537,12 +642,11 @@ export default function SensusJemaatPage() {
                   </div>
 
                   <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="rumahTinggal" className="flex items-center gap-2">
+                    <Label className="flex items-center gap-2">
                       <MapPin className="h-4 w-4 text-blue-600" />
                       Alamat Rumah Tinggal
                     </Label>
                     <Textarea
-                      id="rumahTinggal"
                       value={familyInfo.rumahTinggal}
                       onChange={(e) => handleFamilyInfoChange('rumahTinggal', e.target.value)}
                       placeholder="Alamat lengkap rumah tinggal"
@@ -551,7 +655,7 @@ export default function SensusJemaatPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="penghasilan" className="flex items-center gap-2">
+                    <Label className="flex items-center gap-2">
                       <GraduationCap className="h-4 w-4 text-blue-600" />
                       Penghasilan Bulanan
                     </Label>
@@ -568,7 +672,7 @@ export default function SensusJemaatPage() {
                   </div>
                 </div>
 
-                <div className="mt-6 flex justify-end print:hidden">
+                <div className="mt-6 flex justify-end">
                   <Button onClick={() => setActiveTab('members')} className="bg-blue-600 hover:bg-blue-700">
                     Lanjut ke Anggota Keluarga
                     <Users className="ml-2 h-4 w-4" />
@@ -581,18 +685,18 @@ export default function SensusJemaatPage() {
           {/* Tab 2: Anggota Keluarga */}
           <TabsContent value="members">
             <Card className="shadow-lg border-0">
-              <CardHeader className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-t-lg print:bg-gray-100 print:text-gray-900">
+              <CardHeader className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-t-lg">
                 <div className="flex items-center justify-between">
                   <div>
                     <CardTitle className="flex items-center gap-2">
                       <Users className="h-5 w-5" />
                       Data Anggota Keluarga
                     </CardTitle>
-                    <CardDescription className="text-blue-100 print:text-gray-600">
+                    <CardDescription className="text-blue-100">
                       Masukkan data setiap anggota keluarga (maksimal 8 orang)
                     </CardDescription>
                   </div>
-                  <Badge variant="secondary" className="bg-white/20 text-white print:bg-blue-100 print:text-blue-800">
+                  <Badge variant="secondary" className="bg-white/20 text-white">
                     {members.length}/8 Anggota
                   </Badge>
                 </div>
@@ -601,7 +705,7 @@ export default function SensusJemaatPage() {
                 <div className="space-y-6">
                   {members.map((member, index) => (
                     <div key={member.id} className="border rounded-xl p-4 md:p-6 bg-gradient-to-r from-gray-50 to-blue-50/50 relative">
-                      <div className="absolute top-2 right-2 print:hidden">
+                      <div className="absolute top-2 right-2">
                         {members.length > 1 && (
                           <Button
                             variant="ghost"
@@ -633,7 +737,7 @@ export default function SensusJemaatPage() {
                           />
                         </div>
 
-                        <div className="space-y-1 md:col-span-1 lg:col-span-2">
+                        <div className="space-y-1 lg:col-span-2">
                           <Label className="text-xs text-gray-600">Nama Lengkap (sesuai KK/KTP)</Label>
                           <Input
                             value={member.namaLengkap}
@@ -771,7 +875,7 @@ export default function SensusJemaatPage() {
                   ))}
                 </div>
 
-                <div className="mt-6 flex justify-between print:hidden">
+                <div className="mt-6 flex justify-between">
                   <Button variant="outline" onClick={() => setActiveTab('info')}>
                     Kembali
                   </Button>
@@ -795,12 +899,12 @@ export default function SensusJemaatPage() {
           {/* Tab 3: Baptis & SIDI */}
           <TabsContent value="baptis">
             <Card className="shadow-lg border-0">
-              <CardHeader className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-t-lg print:bg-gray-100 print:text-gray-900">
+              <CardHeader className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-t-lg">
                 <CardTitle className="flex items-center gap-2">
                   <Droplet className="h-5 w-5" />
                   Data Baptis & SIDI
                 </CardTitle>
-                <CardDescription className="text-blue-100 print:text-gray-600">
+                <CardDescription className="text-blue-100">
                   Catatan: * diisi Y = Sudah, N = Belum
                 </CardDescription>
               </CardHeader>
@@ -808,21 +912,21 @@ export default function SensusJemaatPage() {
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
-                      <TableRow className="bg-blue-600 text-white print:bg-gray-200 print:text-black">
-                        <TableHead className="text-white print:text-black font-bold">No</TableHead>
-                        <TableHead className="text-white print:text-black font-bold">Nama</TableHead>
-                        <TableHead className="text-center text-white print:text-black font-bold">Baptis*</TableHead>
-                        <TableHead className="text-white print:text-black font-bold">No. Surat Baptis</TableHead>
-                        <TableHead className="text-white print:text-black font-bold">Tgl Baptis</TableHead>
-                        <TableHead className="text-white print:text-black font-bold">Pendeta Baptis</TableHead>
-                        <TableHead className="text-white print:text-black font-bold">Gereja Baptis</TableHead>
-                        <TableHead className="text-center text-white print:text-black font-bold">SIDI*</TableHead>
-                        <TableHead className="text-white print:text-black font-bold">No. Surat SIDI</TableHead>
-                        <TableHead className="text-white print:text-black font-bold">Tgl SIDI</TableHead>
-                        <TableHead className="text-white print:text-black font-bold">Pendeta SIDI</TableHead>
-                        <TableHead className="text-white print:text-black font-bold">Gereja SIDI</TableHead>
-                        <TableHead className="text-white print:text-black font-bold">Domisili</TableHead>
-                        <TableHead className="text-white print:text-black font-bold">Keterangan</TableHead>
+                      <TableRow className="bg-blue-600 text-white">
+                        <TableHead className="text-white font-bold">No</TableHead>
+                        <TableHead className="text-white font-bold">Nama</TableHead>
+                        <TableHead className="text-center text-white font-bold">Baptis*</TableHead>
+                        <TableHead className="text-white font-bold">No. Surat Baptis</TableHead>
+                        <TableHead className="text-white font-bold">Tgl Baptis</TableHead>
+                        <TableHead className="text-white font-bold">Pendeta Baptis</TableHead>
+                        <TableHead className="text-white font-bold">Gereja Baptis</TableHead>
+                        <TableHead className="text-center text-white font-bold">SIDI*</TableHead>
+                        <TableHead className="text-white font-bold">No. Surat SIDI</TableHead>
+                        <TableHead className="text-white font-bold">Tgl SIDI</TableHead>
+                        <TableHead className="text-white font-bold">Pendeta SIDI</TableHead>
+                        <TableHead className="text-white font-bold">Gereja SIDI</TableHead>
+                        <TableHead className="text-white font-bold">Domisili</TableHead>
+                        <TableHead className="text-white font-bold">Keterangan</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -990,7 +1094,7 @@ export default function SensusJemaatPage() {
                   </div>
                 </div>
 
-                <div className="mt-6 flex justify-between print:hidden">
+                <div className="mt-6 flex justify-between">
                   <Button variant="outline" onClick={() => setActiveTab('members')}>
                     Kembali
                   </Button>
@@ -1014,7 +1118,7 @@ export default function SensusJemaatPage() {
                       Data Keluarga Tersimpan
                     </CardTitle>
                     <CardDescription className="text-green-100">
-                      Lihat, edit, atau hapus data keluarga yang sudah disimpan
+                      Lihat, edit, cetak, atau hapus data keluarga yang sudah disimpan
                     </CardDescription>
                   </div>
                   <Badge variant="secondary" className="bg-white/20 text-white text-lg px-4 py-2">
@@ -1090,14 +1194,13 @@ export default function SensusJemaatPage() {
                               </div>
                               <div className="flex items-center gap-2">
                                 <Calendar className="h-4 w-4" />
-                                <span>{formatDate(data.savedAt)}</span>
+                                <span>{formatDateTime(data.savedAt)}</span>
                               </div>
                               <div className="flex items-center gap-2">
                                 <UserCheck className="h-4 w-4" />
                                 <span>{data.signatureInfo.pemberiData || 'Belum ada pemberi data'}</span>
                               </div>
                             </div>
-                            {/* Preview Members */}
                             <div className="mt-3 flex flex-wrap gap-2">
                               {data.members.slice(0, 4).map((member, idx) => (
                                 <Badge key={idx} variant="secondary" className="bg-gray-100">
@@ -1114,7 +1217,7 @@ export default function SensusJemaatPage() {
                           </div>
                           
                           {/* Actions */}
-                          <div className="flex gap-2">
+                          <div className="flex gap-2 flex-wrap">
                             <Button
                               variant="outline"
                               size="sm"
@@ -1130,10 +1233,18 @@ export default function SensusJemaatPage() {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => loadDataToEdit(data)}
+                              onClick={() => handlePrintData(data)}
                               className="border-green-600 text-green-600 hover:bg-green-50"
                             >
-                              <FileText className="h-4 w-4 mr-2" />
+                              <Printer className="h-4 w-4 mr-2" />
+                              Cetak
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => loadDataToEdit(data)}
+                              className="border-amber-600 text-amber-600 hover:bg-amber-50"
+                            >
                               Edit
                             </Button>
                             <Button
@@ -1155,6 +1266,163 @@ export default function SensusJemaatPage() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Tab 5: Laporan Ulang Tahun & Pernikahan */}
+          <TabsContent value="report">
+            <div className="space-y-6">
+              {/* Filter */}
+              <Card className="shadow-lg border-0">
+                <CardHeader className="bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-t-lg">
+                  <CardTitle className="flex items-center gap-2">
+                    <PartyPopper className="h-5 w-5" />
+                    Laporan Ulang Tahun & Anniversary Pernikahan
+                  </CardTitle>
+                  <CardDescription className="text-purple-100">
+                    Lihat jemaat yang berulang tahun atau anniversary pernikahan di bulan tertentu
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-6">
+                  <div className="flex flex-col md:flex-row gap-4 items-end">
+                    <div className="space-y-2">
+                      <Label>Tahun</Label>
+                      <Input
+                        type="number"
+                        value={reportYear}
+                        onChange={(e) => setReportYear(parseInt(e.target.value) || new Date().getFullYear())}
+                        className="w-32"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Bulan</Label>
+                      <Select value={reportMonth.toString()} onValueChange={(v) => setReportMonth(parseInt(v))}>
+                        <SelectTrigger className="w-48">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Array.from({ length: 12 }, (_, i) => (
+                            <SelectItem key={i + 1} value={(i + 1).toString()}>
+                              {getMonthName(i + 1)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button
+                      onClick={() => setReportDialogOpen(true)}
+                      className="bg-purple-600 hover:bg-purple-700"
+                    >
+                      <Printer className="h-4 w-4 mr-2" />
+                      Cetak Laporan
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Birthday Report */}
+              <Card className="shadow-lg border-0">
+                <CardHeader className="bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-t-lg">
+                  <CardTitle className="flex items-center gap-2">
+                    <Cake className="h-5 w-5" />
+                    Ulang Tahun - {getMonthName(reportMonth)} {reportYear}
+                  </CardTitle>
+                  <CardDescription className="text-pink-100">
+                    Jemaat yang berulang tahun di bulan ini
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-6">
+                  {getBirthdayReport().length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <Cake className="h-12 w-12 mx-auto text-gray-300 mb-2" />
+                      Tidak ada jemaat yang berulang tahun di bulan ini
+                    </div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-pink-100">
+                          <TableHead>Tanggal</TableHead>
+                          <TableHead>Nama</TableHead>
+                          <TableHead>Keluarga</TableHead>
+                          <TableHead>Kolom</TableHead>
+                          <TableHead>Umur</TableHead>
+                          <TableHead>No. Telp</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {getBirthdayReport().map((item, idx) => (
+                          <TableRow key={idx}>
+                            <TableCell>
+                              {new Date(item.member.tanggalLahir).getDate()} {getMonthName(reportMonth)}
+                            </TableCell>
+                            <TableCell className="font-medium">{item.member.namaLengkap}</TableCell>
+                            <TableCell>{item.family.familyInfo.namaKeluarga}</TableCell>
+                            <TableCell>{item.family.familyInfo.kolom || '-'}</TableCell>
+                            <TableCell>
+                              <Badge className="bg-pink-100 text-pink-800">
+                                {item.age} tahun
+                              </Badge>
+                            </TableCell>
+                            <TableCell>{item.member.noTelpWA || '-'}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Marriage Anniversary Report */}
+              <Card className="shadow-lg border-0">
+                <CardHeader className="bg-gradient-to-r from-red-500 to-orange-500 text-white rounded-t-lg">
+                  <CardTitle className="flex items-center gap-2">
+                    <Heart className="h-5 w-5" />
+                    Anniversary Pernikahan - {getMonthName(reportMonth)} {reportYear}
+                  </CardTitle>
+                  <CardDescription className="text-red-100">
+                    Keluarga yang anniversary pernikahan di bulan ini
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-6">
+                  {getMarriageReport().length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <Heart className="h-12 w-12 mx-auto text-gray-300 mb-2" />
+                      Tidak ada anniversary pernikahan di bulan ini
+                    </div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-red-100">
+                          <TableHead>Tanggal</TableHead>
+                          <TableHead>Keluarga</TableHead>
+                          <TableHead>Kolom</TableHead>
+                          <TableHead>Durasi</TableHead>
+                          <TableHead>No. Telp</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {getMarriageReport().map((item, idx) => (
+                          <TableRow key={idx}>
+                            <TableCell>
+                              {new Date(item.family.familyInfo.tanggalNikah).getDate()} {getMonthName(reportMonth)}
+                            </TableCell>
+                            <TableCell className="font-medium">{item.family.familyInfo.namaKeluarga}</TableCell>
+                            <TableCell>{item.family.familyInfo.kolom || '-'}</TableCell>
+                            <TableCell>
+                              <Badge className="bg-red-100 text-red-800">
+                                {item.duration} tahun
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              {item.family.members[0]?.noTelpWA || '-'}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
         </Tabs>
 
@@ -1191,7 +1459,7 @@ export default function SensusJemaatPage() {
                     </div>
                     <div>
                       <span className="text-gray-500">Tanggal Nikah:</span>
-                      <p className="font-medium">{selectedData.familyInfo.tanggalNikah || '-'}</p>
+                      <p className="font-medium">{formatDate(selectedData.familyInfo.tanggalNikah)}</p>
                     </div>
                     <div>
                       <span className="text-gray-500">No. Surat:</span>
@@ -1201,13 +1469,13 @@ export default function SensusJemaatPage() {
                       <span className="text-gray-500">Pendeta Peneguh:</span>
                       <p className="font-medium">{selectedData.familyInfo.pendetaPeneguh || '-'}</p>
                     </div>
-                    <div className="col-span-2">
-                      <span className="text-gray-500">Alamat:</span>
-                      <p className="font-medium">{selectedData.familyInfo.rumahTinggal || '-'}</p>
-                    </div>
                     <div>
                       <span className="text-gray-500">Penghasilan:</span>
                       <p className="font-medium">{selectedData.familyInfo.penghasilanBulanan || '-'}</p>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-gray-500">Alamat:</span>
+                      <p className="font-medium">{selectedData.familyInfo.rumahTinggal || '-'}</p>
                     </div>
                   </div>
                 </div>
@@ -1238,8 +1506,8 @@ export default function SensusJemaatPage() {
                             <TableCell>{member.jenisKelamin || '-'}</TableCell>
                             <TableCell>
                               {member.tempatLahir && member.tanggalLahir
-                                ? `${member.tempatLahir}, ${member.tanggalLahir}`
-                                : member.tempatLahir || member.tanggalLahir || '-'}
+                                ? `${member.tempatLahir}, ${formatDate(member.tanggalLahir)}`
+                                : member.tempatLahir || formatDate(member.tanggalLahir) || '-'}
                             </TableCell>
                             <TableCell>{member.hubunganKeluarga || '-'}</TableCell>
                             <TableCell>{member.statusPernikahan || '-'}</TableCell>
@@ -1302,10 +1570,15 @@ export default function SensusJemaatPage() {
                 Tutup
               </Button>
               {selectedData && (
-                <Button onClick={() => loadDataToEdit(selectedData)} className="bg-green-600 hover:bg-green-700">
-                  <FileText className="h-4 w-4 mr-2" />
-                  Edit Data
-                </Button>
+                <>
+                  <Button onClick={() => handlePrintData(selectedData)} className="bg-green-600 hover:bg-green-700">
+                    <Printer className="h-4 w-4 mr-2" />
+                    Cetak
+                  </Button>
+                  <Button onClick={() => loadDataToEdit(selectedData)} className="bg-blue-600 hover:bg-blue-700">
+                    Edit Data
+                  </Button>
+                </>
               )}
             </DialogFooter>
           </DialogContent>
@@ -1338,54 +1611,357 @@ export default function SensusJemaatPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Print Version */}
-        <div className="hidden print:block">
-          <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold">FORMULIR SENSUS WARGA GEREJA MASEHI INJILI DI MINAHASA</h1>
-            <h2 className="text-xl">Tahun 2026</h2>
-          </div>
-          
-          <div className="grid grid-cols-4 gap-4 mb-8 text-sm">
-            <div><strong>Kolom:</strong> {familyInfo.kolom || '...........'}</div>
-            <div><strong>Nama Keluarga:</strong> {familyInfo.namaKeluarga || '...........'}</div>
-            <div><strong>Nomor KK:</strong> {familyInfo.nomorKK || '...........'}</div>
-            <div><strong>Tanggal Nikah:</strong> {familyInfo.tanggalNikah || '...........'}</div>
-          </div>
+        {/* Print Dialog */}
+        <Dialog open={printDialogOpen} onOpenChange={setPrintDialogOpen}>
+          <DialogContent className="max-w-5xl max-h-[95vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Printer className="h-5 w-5" />
+                Preview Cetak Formulir Sensus
+              </DialogTitle>
+              <DialogDescription>
+                Pastikan data sudah benar sebelum mencetak
+              </DialogDescription>
+            </DialogHeader>
+            
+            {dataToPrint && (
+              <div className="bg-white p-8 border rounded-lg print-content" id="print-content">
+                {/* Header */}
+                <div className="text-center mb-6 border-b pb-4">
+                  <h1 className="text-xl font-bold">GEREJA MASEHI INJILI DI MINAHASA</h1>
+                  <h2 className="text-lg font-bold">FORMULIR SENSUS WARGA JEMAAT TAHUN 2026</h2>
+                </div>
 
-          <h3 className="text-lg font-bold mb-4">Data Anggota Keluarga</h3>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>No</TableHead>
-                <TableHead>NIK</TableHead>
-                <TableHead>Nama Lengkap</TableHead>
-                <TableHead>L/P</TableHead>
-                <TableHead>TTL</TableHead>
-                <TableHead>Hub. Keluarga</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Pekerjaan</TableHead>
-                <TableHead>Gol. Darah</TableHead>
-                <TableHead>Pendidikan</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {members.map((member, index) => (
-                <TableRow key={member.id}>
-                  <TableCell>{index + 1}</TableCell>
-                  <TableCell>{member.nik}</TableCell>
-                  <TableCell>{member.namaLengkap}</TableCell>
-                  <TableCell>{member.jenisKelamin}</TableCell>
-                  <TableCell>{member.tempatLahir}, {member.tanggalLahir}</TableCell>
-                  <TableCell>{member.hubunganKeluarga}</TableCell>
-                  <TableCell>{member.statusPernikahan}</TableCell>
-                  <TableCell>{member.pekerjaan}</TableCell>
-                  <TableCell>{member.golDarah}</TableCell>
-                  <TableCell>{member.pendidikanTerakhir}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+                {/* Family Info */}
+                <div className="mb-6">
+                  <h3 className="font-bold text-lg mb-3 bg-gray-100 p-2">A. DATA KELUARGA</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div className="border p-2">
+                      <span className="text-gray-500">1. Kolom:</span>
+                      <p className="font-bold">{dataToPrint.familyInfo.kolom || '...........'}</p>
+                    </div>
+                    <div className="border p-2">
+                      <span className="text-gray-500">2. Nama Keluarga:</span>
+                      <p className="font-bold">{dataToPrint.familyInfo.namaKeluarga || '...........'}</p>
+                    </div>
+                    <div className="border p-2">
+                      <span className="text-gray-500">3. Nomor KK:</span>
+                      <p className="font-bold">{dataToPrint.familyInfo.nomorKK || '...........'}</p>
+                    </div>
+                    <div className="border p-2">
+                      <span className="text-gray-500">4. Tanggal Nikah:</span>
+                      <p className="font-bold">{formatDate(dataToPrint.familyInfo.tanggalNikah)}</p>
+                    </div>
+                    <div className="border p-2">
+                      <span className="text-gray-500">5. No. Surat Nikah:</span>
+                      <p className="font-bold">{dataToPrint.familyInfo.noSurat || '...........'}</p>
+                    </div>
+                    <div className="border p-2">
+                      <span className="text-gray-500">6. Pendeta Peneguh:</span>
+                      <p className="font-bold">{dataToPrint.familyInfo.pendetaPeneguh || '...........'}</p>
+                    </div>
+                    <div className="border p-2 col-span-2">
+                      <span className="text-gray-500">7. Alamat Rumah Tinggal:</span>
+                      <p className="font-bold">{dataToPrint.familyInfo.rumahTinggal || '...........'}</p>
+                    </div>
+                    <div className="border p-2">
+                      <span className="text-gray-500">8. Penghasilan Bulanan:</span>
+                      <p className="font-bold">{dataToPrint.familyInfo.penghasilanBulanan || '...........'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Members */}
+                <div className="mb-6">
+                  <h3 className="font-bold text-lg mb-3 bg-gray-100 p-2">B. DATA ANGGOTA KELUARGA</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-blue-600 text-white">
+                          <th className="border p-1">No</th>
+                          <th className="border p-1">NIK</th>
+                          <th className="border p-1">Nama Lengkap</th>
+                          <th className="border p-1">L/P</th>
+                          <th className="border p-1">Tempat Lahir</th>
+                          <th className="border p-1">Tgl Lahir</th>
+                          <th className="border p-1">Hub. Keluarga</th>
+                          <th className="border p-1">Status Nikah</th>
+                          <th className="border p-1">Pekerjaan</th>
+                          <th className="border p-1">Gol. Darah</th>
+                          <th className="border p-1">Pendidikan</th>
+                          <th className="border p-1">No. Telp/WA</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {dataToPrint.members.map((member, idx) => (
+                          <tr key={idx} className={idx % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
+                            <td className="border p-1 text-center">{idx + 1}</td>
+                            <td className="border p-1">{member.nik || '-'}</td>
+                            <td className="border p-1 font-medium">{member.namaLengkap || '-'}</td>
+                            <td className="border p-1 text-center">{member.jenisKelamin || '-'}</td>
+                            <td className="border p-1">{member.tempatLahir || '-'}</td>
+                            <td className="border p-1">{member.tanggalLahir || '-'}</td>
+                            <td className="border p-1">{member.hubunganKeluarga || '-'}</td>
+                            <td className="border p-1">{member.statusPernikahan || '-'}</td>
+                            <td className="border p-1">{member.pekerjaan || '-'}</td>
+                            <td className="border p-1 text-center">{member.golDarah || '-'}</td>
+                            <td className="border p-1">{member.pendidikanTerakhir || '-'}</td>
+                            <td className="border p-1">{member.noTelpWA || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Baptis & SIDI */}
+                <div className="mb-6">
+                  <h3 className="font-bold text-lg mb-3 bg-gray-100 p-2">C. DATA BAPTIS & SIDI</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-green-600 text-white">
+                          <th className="border p-1" rowSpan={2}>No</th>
+                          <th className="border p-1" rowSpan={2}>Nama</th>
+                          <th className="border p-1 text-center" colSpan={4}>BAPTIS</th>
+                          <th className="border p-1 text-center" colSpan={4}>SIDI</th>
+                          <th className="border p-1" rowSpan={2}>Domisili</th>
+                          <th className="border p-1" rowSpan={2}>Keterangan</th>
+                        </tr>
+                        <tr className="bg-green-500 text-white">
+                          <th className="border p-1">Y/N</th>
+                          <th className="border p-1">No. Surat</th>
+                          <th className="border p-1">Tanggal</th>
+                          <th className="border p-1">Gereja</th>
+                          <th className="border p-1">Y/N</th>
+                          <th className="border p-1">No. Surat</th>
+                          <th className="border p-1">Tanggal</th>
+                          <th className="border p-1">Gereja</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {dataToPrint.members.map((member, idx) => (
+                          <tr key={idx} className={idx % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
+                            <td className="border p-1 text-center">{idx + 1}</td>
+                            <td className="border p-1 font-medium">{member.namaLengkap || '-'}</td>
+                            <td className="border p-1 text-center">{member.baptis.sudah ? 'Y' : 'N'}</td>
+                            <td className="border p-1">{member.baptis.noSurat || '-'}</td>
+                            <td className="border p-1">{member.baptis.tanggal || '-'}</td>
+                            <td className="border p-1">{member.baptis.gerejaJemaat || '-'}</td>
+                            <td className="border p-1 text-center">{member.sidi.sudah ? 'Y' : 'N'}</td>
+                            <td className="border p-1">{member.sidi.noSurat || '-'}</td>
+                            <td className="border p-1">{member.sidi.tanggal || '-'}</td>
+                            <td className="border p-1">{member.sidi.gerejaJemaat || '-'}</td>
+                            <td className="border p-1">{member.domisili || '-'}</td>
+                            <td className="border p-1">{member.keterangan || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">* Catatan: Y = Sudah, N = Belum</p>
+                </div>
+
+                {/* Signatures */}
+                <div className="mt-8">
+                  <p className="text-sm mb-4">{dataToPrint.familyInfo.rumahTinggal || '..........................'}, {formatDate(dataToPrint.signatureInfo.tanggal)}</p>
+                  <div className="grid grid-cols-4 gap-4 text-center text-sm">
+                    <div>
+                      <p className="mb-12">Pemberi Data</p>
+                      <p className="border-t border-black pt-1">{dataToPrint.signatureInfo.pemberiData || '....................'}</p>
+                    </div>
+                    <div>
+                      <p className="mb-12">Penatua Kolom</p>
+                      <p className="border-t border-black pt-1">{dataToPrint.signatureInfo.penatuaKolom || '....................'}</p>
+                    </div>
+                    <div>
+                      <p className="mb-12">Diaken Kolom</p>
+                      <p className="border-t border-black pt-1">{dataToPrint.signatureInfo.diakenKolom || '....................'}</p>
+                    </div>
+                    <div>
+                      <p className="mb-12">Ketua BPMJ</p>
+                      <p className="border-t border-black pt-1">{dataToPrint.signatureInfo.ketuaBPMJ || '....................'}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setPrintDialogOpen(false)}>
+                Tutup
+              </Button>
+              <Button 
+                onClick={() => {
+                  const printContent = document.getElementById('print-content')
+                  if (printContent) {
+                    const printWindow = window.open('', '', 'height=800,width=1200')
+                    if (printWindow) {
+                      printWindow.document.write('<html><head><title>Cetak Formulir Sensus</title>')
+                      printWindow.document.write('<style>')
+                      printWindow.document.write('body { font-family: Arial, sans-serif; font-size: 12px; padding: 20px; }')
+                      printWindow.document.write('table { width: 100%; border-collapse: collapse; }')
+                      printWindow.document.write('th, td { border: 1px solid #333; padding: 4px 8px; text-align: left; }')
+                      printWindow.document.write('th { background-color: #1e40af; color: white; }')
+                      printWindow.document.write('.bg-blue-600 { background-color: #1e40af; }')
+                      printWindow.document.write('.bg-green-600 { background-color: #16a34a; }')
+                      printWindow.document.write('.bg-green-500 { background-color: #22c55e; }')
+                      printWindow.document.write('.bg-gray-100 { background-color: #f3f4f6; }')
+                      printWindow.document.write('.bg-gray-50 { background-color: #f9fafb; }')
+                      printWindow.document.write('@media print { body { padding: 0; } }')
+                      printWindow.document.write('</style>')
+                      printWindow.document.write('</head><body>')
+                      printWindow.document.write(printContent.innerHTML)
+                      printWindow.document.write('</body></html>')
+                      printWindow.document.close()
+                      printWindow.print()
+                    }
+                  }
+                }}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                <Printer className="h-4 w-4 mr-2" />
+                Cetak
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Report Print Dialog */}
+        <Dialog open={reportDialogOpen} onOpenChange={setReportDialogOpen}>
+          <DialogContent className="max-w-5xl max-h-[95vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <PartyPopper className="h-5 w-5" />
+                Laporan {getMonthName(reportMonth)} {reportYear}
+              </DialogTitle>
+              <DialogDescription>
+                Preview laporan ulang tahun dan anniversary pernikahan
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="bg-white p-8 border rounded-lg" id="report-content">
+              {/* Header */}
+              <div className="text-center mb-6 border-b pb-4">
+                <h1 className="text-xl font-bold">GEREJA MASEHI INJILI DI MINAHASA</h1>
+                <h2 className="text-lg font-bold">LAPORAN ULANG TAHUN & ANNIVERSARY PERNIKAHAN</h2>
+                <h3 className="text-md">{getMonthName(reportMonth)} {reportYear}</h3>
+              </div>
+
+              {/* Birthday List */}
+              <div className="mb-6">
+                <h3 className="font-bold text-lg mb-3 bg-pink-100 p-2">ULANG TAHUN</h3>
+                {getBirthdayReport().length === 0 ? (
+                  <p className="text-gray-500 text-center py-4">Tidak ada jemaat yang berulang tahun di bulan ini</p>
+                ) : (
+                  <table className="w-full border-collapse text-sm">
+                    <thead>
+                      <tr className="bg-pink-200">
+                        <th className="border p-2">No</th>
+                        <th className="border p-2">Tanggal</th>
+                        <th className="border p-2">Nama</th>
+                        <th className="border p-2">Keluarga</th>
+                        <th className="border p-2">Kolom</th>
+                        <th className="border p-2">Umur</th>
+                        <th className="border p-2">No. Telp</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {getBirthdayReport().map((item, idx) => (
+                        <tr key={idx} className={idx % 2 === 0 ? 'bg-pink-50' : 'bg-white'}>
+                          <td className="border p-2 text-center">{idx + 1}</td>
+                          <td className="border p-2">{new Date(item.member.tanggalLahir).getDate()} {getMonthName(reportMonth)}</td>
+                          <td className="border p-2 font-medium">{item.member.namaLengkap}</td>
+                          <td className="border p-2">{item.family.familyInfo.namaKeluarga}</td>
+                          <td className="border p-2">{item.family.familyInfo.kolom || '-'}</td>
+                          <td className="border p-2 text-center font-bold">{item.age} tahun</td>
+                          <td className="border p-2">{item.member.noTelpWA || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              {/* Marriage Anniversary List */}
+              <div className="mb-6">
+                <h3 className="font-bold text-lg mb-3 bg-red-100 p-2">ANNIVERSARY PERNIKAHAN</h3>
+                {getMarriageReport().length === 0 ? (
+                  <p className="text-gray-500 text-center py-4">Tidak ada anniversary pernikahan di bulan ini</p>
+                ) : (
+                  <table className="w-full border-collapse text-sm">
+                    <thead>
+                      <tr className="bg-red-200">
+                        <th className="border p-2">No</th>
+                        <th className="border p-2">Tanggal</th>
+                        <th className="border p-2">Keluarga</th>
+                        <th className="border p-2">Kolom</th>
+                        <th className="border p-2">Durasi</th>
+                        <th className="border p-2">No. Telp</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {getMarriageReport().map((item, idx) => (
+                        <tr key={idx} className={idx % 2 === 0 ? 'bg-red-50' : 'bg-white'}>
+                          <td className="border p-2 text-center">{idx + 1}</td>
+                          <td className="border p-2">{new Date(item.family.familyInfo.tanggalNikah).getDate()} {getMonthName(reportMonth)}</td>
+                          <td className="border p-2 font-medium">{item.family.familyInfo.namaKeluarga}</td>
+                          <td className="border p-2">{item.family.familyInfo.kolom || '-'}</td>
+                          <td className="border p-2 text-center font-bold">{item.duration} tahun</td>
+                          <td className="border p-2">{item.family.members[0]?.noTelpWA || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              {/* Summary */}
+              <div className="mt-4 text-sm text-gray-600">
+                <p>Total Ulang Tahun: {getBirthdayReport().length} orang</p>
+                <p>Total Anniversary Pernikahan: {getMarriageReport().length} keluarga</p>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setReportDialogOpen(false)}>
+                Tutup
+              </Button>
+              <Button 
+                onClick={() => {
+                  const reportContent = document.getElementById('report-content')
+                  if (reportContent) {
+                    const printWindow = window.open('', '', 'height=800,width=1200')
+                    if (printWindow) {
+                      printWindow.document.write('<html><head><title>Laporan Ulang Tahun & Anniversary</title>')
+                      printWindow.document.write('<style>')
+                      printWindow.document.write('body { font-family: Arial, sans-serif; font-size: 12px; padding: 20px; }')
+                      printWindow.document.write('table { width: 100%; border-collapse: collapse; }')
+                      printWindow.document.write('th, td { border: 1px solid #333; padding: 8px; text-align: left; }')
+                      printWindow.document.write('.bg-pink-200 { background-color: #fbcfe8; }')
+                      printWindow.document.write('.bg-pink-100 { background-color: #fce7f3; }')
+                      printWindow.document.write('.bg-pink-50 { background-color: #fdf2f8; }')
+                      printWindow.document.write('.bg-red-200 { background-color: #fecaca; }')
+                      printWindow.document.write('.bg-red-100 { background-color: #fee2e2; }')
+                      printWindow.document.write('.bg-red-50 { background-color: #fef2f2; }')
+                      printWindow.document.write('@media print { body { padding: 0; } }')
+                      printWindow.document.write('</style>')
+                      printWindow.document.write('</head><body>')
+                      printWindow.document.write(reportContent.innerHTML)
+                      printWindow.document.write('</body></html>')
+                      printWindow.document.close()
+                      printWindow.print()
+                    }
+                  }
+                }}
+                className="bg-purple-600 hover:bg-purple-700"
+              >
+                <Printer className="h-4 w-4 mr-2" />
+                Cetak Laporan
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </main>
 
       {/* Footer */}
