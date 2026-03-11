@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -10,8 +10,15 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
+import { 
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter
+} from '@/components/ui/dialog'
 import { 
   Users, 
   Church, 
@@ -20,15 +27,20 @@ import {
   Trash2, 
   Save, 
   Printer,
-  UserPlus,
-  Calendar,
-  Phone,
-  MapPin,
   FileText,
   Heart,
   GraduationCap,
   Droplet,
-  Building
+  Building,
+  Eye,
+  Database,
+  Search,
+  Calendar,
+  MapPin,
+  Phone,
+  UserCheck,
+  AlertCircle,
+  FolderOpen
 } from 'lucide-react'
 
 // Types
@@ -68,6 +80,22 @@ interface BaptisSidiData {
   tanggal: string
   namaPendeta: string
   gerejaJemaat: string
+}
+
+interface SignatureInfo {
+  pemberiData: string
+  penatuaKolom: string
+  diakenKolom: string
+  ketuaBPMJ: string
+  tanggal: string
+}
+
+interface SavedFamilyData {
+  id: string
+  savedAt: string
+  familyInfo: FamilyInfo
+  members: FamilyMember[]
+  signatureInfo: SignatureInfo
 }
 
 const HUBUNGAN_KELUARGA_OPTIONS = [
@@ -147,6 +175,8 @@ const defaultMember: () => FamilyMember = () => ({
   keterangan: ''
 })
 
+const STORAGE_KEY = 'sensusJemaat2026_all'
+
 export default function SensusJemaatPage() {
   const printRef = useRef<HTMLDivElement>(null)
   
@@ -163,7 +193,7 @@ export default function SensusJemaatPage() {
 
   const [members, setMembers] = useState<FamilyMember[]>([defaultMember()])
   
-  const [signatureInfo, setSignatureInfo] = useState({
+  const [signatureInfo, setSignatureInfo] = useState<SignatureInfo>({
     pemberiData: '',
     penatuaKolom: '',
     diakenKolom: '',
@@ -172,6 +202,31 @@ export default function SensusJemaatPage() {
   })
 
   const [activeTab, setActiveTab] = useState('info')
+  const [savedDataList, setSavedDataList] = useState<SavedFamilyData[]>(() => {
+    // Initialize from localStorage on first render
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(STORAGE_KEY)
+      if (saved) {
+        return JSON.parse(saved)
+      }
+    }
+    return []
+  })
+  const [searchQuery, setSearchQuery] = useState('')
+  const [viewDialogOpen, setViewDialogOpen] = useState(false)
+  const [selectedData, setSelectedData] = useState<SavedFamilyData | null>(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [dataToDelete, setDataToDelete] = useState<string | null>(null)
+
+  // Refresh saved data list
+  const refreshSavedDataList = () => {
+    const saved = localStorage.getItem(STORAGE_KEY)
+    if (saved) {
+      setSavedDataList(JSON.parse(saved))
+    } else {
+      setSavedDataList([])
+    }
+  }
 
   // Handlers
   const handleFamilyInfoChange = (field: keyof FamilyInfo, value: string) => {
@@ -182,7 +237,6 @@ export default function SensusJemaatPage() {
     setMembers(prev => prev.map(member => {
       if (member.id !== id) return member
       
-      // Handle nested baptis/sidi fields
       if (field.startsWith('baptis.') || field.startsWith('sidi.')) {
         const [parent, child] = field.split('.')
         return {
@@ -214,55 +268,111 @@ export default function SensusJemaatPage() {
     setSignatureInfo(prev => ({ ...prev, [field]: value }))
   }
 
-  // Save to localStorage
+  // Save data to localStorage (add to list)
   const saveData = () => {
-    const data = { familyInfo, members, signatureInfo }
-    localStorage.setItem('sensusJemaat2026', JSON.stringify(data))
+    // Validate required fields
+    if (!familyInfo.namaKeluarga) {
+      alert('Nama Keluarga wajib diisi!')
+      return
+    }
+
+    const newEntry: SavedFamilyData = {
+      id: `family_${Date.now()}`,
+      savedAt: new Date().toISOString(),
+      familyInfo: { ...familyInfo },
+      members: [...members],
+      signatureInfo: { ...signatureInfo }
+    }
+
+    const existingData = localStorage.getItem(STORAGE_KEY)
+    let allData: SavedFamilyData[] = existingData ? JSON.parse(existingData) : []
+    allData.unshift(newEntry) // Add to beginning
+    
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(allData))
+    setSavedDataList(allData)
+    
     alert('Data berhasil disimpan!')
   }
 
-  // Load from localStorage
-  const loadData = () => {
-    const saved = localStorage.getItem('sensusJemaat2026')
-    if (saved) {
-      const data = JSON.parse(saved)
-      setFamilyInfo(data.familyInfo)
-      setMembers(data.members)
-      setSignatureInfo(data.signatureInfo)
-      alert('Data berhasil dimuat!')
-    } else {
-      alert('Tidak ada data tersimpan')
-    }
+  // Delete specific data
+  const deleteData = (id: string) => {
+    const updatedList = savedDataList.filter(item => item.id !== id)
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedList))
+    setSavedDataList(updatedList)
+    setDeleteDialogOpen(false)
+    setDataToDelete(null)
   }
 
-  // Clear data
-  const clearData = () => {
-    if (confirm('Apakah Anda yakin ingin menghapus semua data?')) {
-      localStorage.removeItem('sensusJemaat2026')
-      setFamilyInfo({
-        kolom: '',
-        namaKeluarga: '',
-        nomorKK: '',
-        tanggalNikah: '',
-        noSurat: '',
-        pendetaPeneguh: '',
-        rumahTinggal: '',
-        penghasilanBulanan: ''
-      })
-      setMembers([defaultMember()])
-      setSignatureInfo({
-        pemberiData: '',
-        penatuaKolom: '',
-        diakenKolom: '',
-        ketuaBPMJ: '',
-        tanggal: new Date().toISOString().split('T')[0]
-      })
+  // Load specific data to edit
+  const loadDataToEdit = (data: SavedFamilyData) => {
+    setFamilyInfo(data.familyInfo)
+    setMembers(data.members)
+    setSignatureInfo(data.signatureInfo)
+    setActiveTab('info')
+    setViewDialogOpen(false)
+  }
+
+  // Clear current form
+  const clearForm = () => {
+    setFamilyInfo({
+      kolom: '',
+      namaKeluarga: '',
+      nomorKK: '',
+      tanggalNikah: '',
+      noSurat: '',
+      pendetaPeneguh: '',
+      rumahTinggal: '',
+      penghasilanBulanan: ''
+    })
+    setMembers([defaultMember()])
+    setSignatureInfo({
+      pemberiData: '',
+      penatuaKolom: '',
+      diakenKolom: '',
+      ketuaBPMJ: '',
+      tanggal: new Date().toISOString().split('T')[0]
+    })
+  }
+
+  // Clear all saved data
+  const clearAllData = () => {
+    if (confirm('Apakah Anda yakin ingin menghapus SEMUA data tersimpan? Tindakan ini tidak dapat dibatalkan!')) {
+      localStorage.removeItem(STORAGE_KEY)
+      setSavedDataList([])
+      alert('Semua data telah dihapus')
     }
   }
 
   // Print function
   const handlePrint = () => {
     window.print()
+  }
+
+  // Filter data based on search
+  const filteredData = savedDataList.filter(item => {
+    const searchLower = searchQuery.toLowerCase()
+    return (
+      item.familyInfo.namaKeluarga.toLowerCase().includes(searchLower) ||
+      item.familyInfo.kolom.toLowerCase().includes(searchLower) ||
+      item.familyInfo.nomorKK.includes(searchQuery) ||
+      item.members.some(m => m.namaLengkap.toLowerCase().includes(searchLower))
+    )
+  })
+
+  // Format date for display
+  const formatDate = (dateString: string) => {
+    if (!dateString) return '-'
+    try {
+      return new Date(dateString).toLocaleDateString('id-ID', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    } catch {
+      return dateString
+    }
   }
 
   return (
@@ -285,17 +395,13 @@ export default function SensusJemaatPage() {
                 <Save className="h-4 w-4 mr-2" />
                 Simpan
               </Button>
-              <Button variant="secondary" size="sm" onClick={loadData}>
-                <Download className="h-4 w-4 mr-2" />
-                Muat
-              </Button>
               <Button variant="secondary" size="sm" onClick={handlePrint}>
                 <Printer className="h-4 w-4 mr-2" />
                 Cetak
               </Button>
-              <Button variant="destructive" size="sm" onClick={clearData}>
+              <Button variant="destructive" size="sm" onClick={clearForm}>
                 <Trash2 className="h-4 w-4 mr-2" />
-                Reset
+                Reset Form
               </Button>
             </div>
           </div>
@@ -305,7 +411,7 @@ export default function SensusJemaatPage() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 py-6" ref={printRef}>
         <Tabs value={activeTab} onValueChange={setActiveTab} className="print:hidden">
-          <TabsList className="grid w-full grid-cols-3 mb-6">
+          <TabsList className="grid w-full grid-cols-4 mb-6">
             <TabsTrigger value="info" className="flex items-center gap-2">
               <FileText className="h-4 w-4" />
               <span className="hidden sm:inline">Informasi Keluarga</span>
@@ -320,6 +426,16 @@ export default function SensusJemaatPage() {
               <Droplet className="h-4 w-4" />
               <span className="hidden sm:inline">Baptis & SIDI</span>
               <span className="sm:hidden">Baptis</span>
+            </TabsTrigger>
+            <TabsTrigger value="saved" className="flex items-center gap-2">
+              <Database className="h-4 w-4" />
+              <span className="hidden sm:inline">Data Tersimpan</span>
+              <span className="sm:hidden">Tersimpan</span>
+              {savedDataList.length > 0 && (
+                <Badge variant="secondary" className="ml-1 bg-white/20">
+                  {savedDataList.length}
+                </Badge>
+              )}
             </TabsTrigger>
           </TabsList>
 
@@ -337,7 +453,6 @@ export default function SensusJemaatPage() {
               </CardHeader>
               <CardContent className="p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  {/* Kolom */}
                   <div className="space-y-2">
                     <Label htmlFor="kolom" className="flex items-center gap-2">
                       <Building className="h-4 w-4 text-blue-600" />
@@ -355,11 +470,10 @@ export default function SensusJemaatPage() {
                     </Select>
                   </div>
 
-                  {/* Nama Keluarga */}
                   <div className="space-y-2">
                     <Label htmlFor="namaKeluarga" className="flex items-center gap-2">
                       <Users className="h-4 w-4 text-blue-600" />
-                      Nama Keluarga
+                      Nama Keluarga *
                     </Label>
                     <Input
                       id="namaKeluarga"
@@ -369,7 +483,6 @@ export default function SensusJemaatPage() {
                     />
                   </div>
 
-                  {/* Nomor KK */}
                   <div className="space-y-2">
                     <Label htmlFor="nomorKK" className="flex items-center gap-2">
                       <FileText className="h-4 w-4 text-blue-600" />
@@ -384,7 +497,6 @@ export default function SensusJemaatPage() {
                     />
                   </div>
 
-                  {/* Tanggal Nikah */}
                   <div className="space-y-2">
                     <Label htmlFor="tanggalNikah" className="flex items-center gap-2">
                       <Heart className="h-4 w-4 text-blue-600" />
@@ -398,7 +510,6 @@ export default function SensusJemaatPage() {
                     />
                   </div>
 
-                  {/* No. Surat */}
                   <div className="space-y-2">
                     <Label htmlFor="noSurat" className="flex items-center gap-2">
                       <FileText className="h-4 w-4 text-blue-600" />
@@ -412,7 +523,6 @@ export default function SensusJemaatPage() {
                     />
                   </div>
 
-                  {/* Pendeta Peneguh */}
                   <div className="space-y-2">
                     <Label htmlFor="pendetaPeneguh" className="flex items-center gap-2">
                       <Church className="h-4 w-4 text-blue-600" />
@@ -426,7 +536,6 @@ export default function SensusJemaatPage() {
                     />
                   </div>
 
-                  {/* Rumah Tinggal */}
                   <div className="space-y-2 md:col-span-2">
                     <Label htmlFor="rumahTinggal" className="flex items-center gap-2">
                       <MapPin className="h-4 w-4 text-blue-600" />
@@ -441,7 +550,6 @@ export default function SensusJemaatPage() {
                     />
                   </div>
 
-                  {/* Penghasilan Bulanan */}
                   <div className="space-y-2">
                     <Label htmlFor="penghasilan" className="flex items-center gap-2">
                       <GraduationCap className="h-4 w-4 text-blue-600" />
@@ -514,7 +622,6 @@ export default function SensusJemaatPage() {
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {/* NIK */}
                         <div className="space-y-1">
                           <Label className="text-xs text-gray-600">NIK</Label>
                           <Input
@@ -526,7 +633,6 @@ export default function SensusJemaatPage() {
                           />
                         </div>
 
-                        {/* Nama Lengkap */}
                         <div className="space-y-1 md:col-span-1 lg:col-span-2">
                           <Label className="text-xs text-gray-600">Nama Lengkap (sesuai KK/KTP)</Label>
                           <Input
@@ -537,7 +643,6 @@ export default function SensusJemaatPage() {
                           />
                         </div>
 
-                        {/* Jenis Kelamin */}
                         <div className="space-y-1">
                           <Label className="text-xs text-gray-600">Jenis Kelamin</Label>
                           <Select 
@@ -554,7 +659,6 @@ export default function SensusJemaatPage() {
                           </Select>
                         </div>
 
-                        {/* Tempat Lahir */}
                         <div className="space-y-1">
                           <Label className="text-xs text-gray-600">Tempat Lahir</Label>
                           <Input
@@ -565,7 +669,6 @@ export default function SensusJemaatPage() {
                           />
                         </div>
 
-                        {/* Tanggal Lahir */}
                         <div className="space-y-1">
                           <Label className="text-xs text-gray-600">Tanggal Lahir</Label>
                           <Input
@@ -576,7 +679,6 @@ export default function SensusJemaatPage() {
                           />
                         </div>
 
-                        {/* Hubungan Keluarga */}
                         <div className="space-y-1">
                           <Label className="text-xs text-gray-600">Hubungan Keluarga</Label>
                           <Select 
@@ -594,7 +696,6 @@ export default function SensusJemaatPage() {
                           </Select>
                         </div>
 
-                        {/* Status Pernikahan */}
                         <div className="space-y-1">
                           <Label className="text-xs text-gray-600">Status Pernikahan</Label>
                           <Select 
@@ -612,7 +713,6 @@ export default function SensusJemaatPage() {
                           </Select>
                         </div>
 
-                        {/* Pekerjaan */}
                         <div className="space-y-1">
                           <Label className="text-xs text-gray-600">Pekerjaan</Label>
                           <Input
@@ -623,7 +723,6 @@ export default function SensusJemaatPage() {
                           />
                         </div>
 
-                        {/* Golongan Darah */}
                         <div className="space-y-1">
                           <Label className="text-xs text-gray-600">Gol. Darah</Label>
                           <Select 
@@ -641,7 +740,6 @@ export default function SensusJemaatPage() {
                           </Select>
                         </div>
 
-                        {/* Pendidikan Terakhir */}
                         <div className="space-y-1">
                           <Label className="text-xs text-gray-600">Pendidikan Terakhir</Label>
                           <Select 
@@ -659,7 +757,6 @@ export default function SensusJemaatPage() {
                           </Select>
                         </div>
 
-                        {/* No. Telp/WA */}
                         <div className="space-y-1">
                           <Label className="text-xs text-gray-600">No. Telp/WA</Label>
                           <Input
@@ -735,7 +832,7 @@ export default function SensusJemaatPage() {
                           <TableCell>{member.namaLengkap || '-'}</TableCell>
                           <TableCell className="text-center">
                             <Select 
-                              value={member.baptis.sudah ? 'Y' : member.baptis.sudah === false && member.baptis.noSurat ? 'Y' : 'N'} 
+                              value={member.baptis.sudah ? 'Y' : 'N'} 
                               onValueChange={(v) => handleMemberChange(member.id, 'baptis.sudah', v === 'Y')}
                             >
                               <SelectTrigger className="w-16 h-8 mx-auto">
@@ -905,9 +1002,343 @@ export default function SensusJemaatPage() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* Tab 4: Data Tersimpan */}
+          <TabsContent value="saved">
+            <Card className="shadow-lg border-0">
+              <CardHeader className="bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-t-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <Database className="h-5 w-5" />
+                      Data Keluarga Tersimpan
+                    </CardTitle>
+                    <CardDescription className="text-green-100">
+                      Lihat, edit, atau hapus data keluarga yang sudah disimpan
+                    </CardDescription>
+                  </div>
+                  <Badge variant="secondary" className="bg-white/20 text-white text-lg px-4 py-2">
+                    {savedDataList.length} Data
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="p-6">
+                {/* Search Bar */}
+                <div className="flex flex-col md:flex-row gap-4 mb-6">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                    <Input
+                      placeholder="Cari berdasarkan nama keluarga, kolom, atau NIK..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                  {savedDataList.length > 0 && (
+                    <Button variant="destructive" onClick={clearAllData}>
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Hapus Semua
+                    </Button>
+                  )}
+                </div>
+
+                {/* Data List */}
+                {filteredData.length === 0 ? (
+                  <div className="text-center py-16">
+                    <FolderOpen className="h-16 w-16 mx-auto text-gray-300 mb-4" />
+                    <p className="text-gray-500 text-lg">
+                      {savedDataList.length === 0 
+                        ? 'Belum ada data tersimpan' 
+                        : 'Tidak ada data yang cocok dengan pencarian'}
+                    </p>
+                    {savedDataList.length === 0 && (
+                      <Button 
+                        onClick={() => setActiveTab('info')} 
+                        className="mt-4 bg-blue-600 hover:bg-blue-700"
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Tambah Data Baru
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {filteredData.map((data) => (
+                      <div 
+                        key={data.id} 
+                        className="border rounded-xl p-4 md:p-6 bg-gradient-to-r from-green-50 to-emerald-50/50 hover:shadow-md transition-shadow"
+                      >
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                          {/* Info */}
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                              <h3 className="text-xl font-bold text-gray-900">
+                                {data.familyInfo.namaKeluarga}
+                              </h3>
+                              <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-200">
+                                {data.familyInfo.kolom || 'Belum ada kolom'}
+                              </Badge>
+                            </div>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600">
+                              <div className="flex items-center gap-2">
+                                <FileText className="h-4 w-4" />
+                                <span>KK: {data.familyInfo.nomorKK || '-'}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Users className="h-4 w-4" />
+                                <span>{data.members.length} Anggota</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Calendar className="h-4 w-4" />
+                                <span>{formatDate(data.savedAt)}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <UserCheck className="h-4 w-4" />
+                                <span>{data.signatureInfo.pemberiData || 'Belum ada pemberi data'}</span>
+                              </div>
+                            </div>
+                            {/* Preview Members */}
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {data.members.slice(0, 4).map((member, idx) => (
+                                <Badge key={idx} variant="secondary" className="bg-gray-100">
+                                  {member.namaLengkap || `Anggota ${idx + 1}`}
+                                  {member.jenisKelamin && ` (${member.jenisKelamin})`}
+                                </Badge>
+                              ))}
+                              {data.members.length > 4 && (
+                                <Badge variant="secondary" className="bg-gray-200">
+                                  +{data.members.length - 4} lainnya
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                          
+                          {/* Actions */}
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedData(data)
+                                setViewDialogOpen(true)
+                              }}
+                              className="border-blue-600 text-blue-600 hover:bg-blue-50"
+                            >
+                              <Eye className="h-4 w-4 mr-2" />
+                              Lihat
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => loadDataToEdit(data)}
+                              className="border-green-600 text-green-600 hover:bg-green-50"
+                            >
+                              <FileText className="h-4 w-4 mr-2" />
+                              Edit
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setDataToDelete(data.id)
+                                setDeleteDialogOpen(true)
+                              }}
+                              className="border-red-600 text-red-600 hover:bg-red-50"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
 
-        {/* Print Version - Summary */}
+        {/* View Detail Dialog */}
+        <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                Detail Data Keluarga
+              </DialogTitle>
+              <DialogDescription>
+                Informasi lengkap keluarga {selectedData?.familyInfo.namaKeluarga}
+              </DialogDescription>
+            </DialogHeader>
+            
+            {selectedData && (
+              <div className="space-y-6">
+                {/* Family Info */}
+                <div className="bg-blue-50 rounded-lg p-4">
+                  <h4 className="font-semibold text-blue-800 mb-3">Informasi Keluarga</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div>
+                      <span className="text-gray-500">Kolom:</span>
+                      <p className="font-medium">{selectedData.familyInfo.kolom || '-'}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Nama Keluarga:</span>
+                      <p className="font-medium">{selectedData.familyInfo.namaKeluarga}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">No. KK:</span>
+                      <p className="font-medium">{selectedData.familyInfo.nomorKK || '-'}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Tanggal Nikah:</span>
+                      <p className="font-medium">{selectedData.familyInfo.tanggalNikah || '-'}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">No. Surat:</span>
+                      <p className="font-medium">{selectedData.familyInfo.noSurat || '-'}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Pendeta Peneguh:</span>
+                      <p className="font-medium">{selectedData.familyInfo.pendetaPeneguh || '-'}</p>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-gray-500">Alamat:</span>
+                      <p className="font-medium">{selectedData.familyInfo.rumahTinggal || '-'}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Penghasilan:</span>
+                      <p className="font-medium">{selectedData.familyInfo.penghasilanBulanan || '-'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Members Table */}
+                <div>
+                  <h4 className="font-semibold text-gray-800 mb-3">Anggota Keluarga ({selectedData.members.length})</h4>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-gray-100">
+                          <TableHead>No</TableHead>
+                          <TableHead>Nama</TableHead>
+                          <TableHead>L/P</TableHead>
+                          <TableHead>TTL</TableHead>
+                          <TableHead>Hubungan</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Pekerjaan</TableHead>
+                          <TableHead>Gol. Darah</TableHead>
+                          <TableHead>Pendidikan</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {selectedData.members.map((member, idx) => (
+                          <TableRow key={idx}>
+                            <TableCell>{idx + 1}</TableCell>
+                            <TableCell className="font-medium">{member.namaLengkap || '-'}</TableCell>
+                            <TableCell>{member.jenisKelamin || '-'}</TableCell>
+                            <TableCell>
+                              {member.tempatLahir && member.tanggalLahir
+                                ? `${member.tempatLahir}, ${member.tanggalLahir}`
+                                : member.tempatLahir || member.tanggalLahir || '-'}
+                            </TableCell>
+                            <TableCell>{member.hubunganKeluarga || '-'}</TableCell>
+                            <TableCell>{member.statusPernikahan || '-'}</TableCell>
+                            <TableCell>{member.pekerjaan || '-'}</TableCell>
+                            <TableCell>{member.golDarah || '-'}</TableCell>
+                            <TableCell>{member.pendidikanTerakhir || '-'}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+
+                {/* Baptis & SIDI Summary */}
+                <div className="bg-green-50 rounded-lg p-4">
+                  <h4 className="font-semibold text-green-800 mb-3">Status Baptis & SIDI</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <span className="text-gray-500">Sudah Baptis:</span>
+                      <p className="font-medium">
+                        {selectedData.members.filter(m => m.baptis.sudah).length} dari {selectedData.members.length}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Sudah SIDI:</span>
+                      <p className="font-medium">
+                        {selectedData.members.filter(m => m.sidi.sudah).length} dari {selectedData.members.length}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Signature Info */}
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h4 className="font-semibold text-gray-800 mb-3">Tanda Tangan</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div>
+                      <span className="text-gray-500">Pemberi Data:</span>
+                      <p className="font-medium">{selectedData.signatureInfo.pemberiData || '-'}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Penatua:</span>
+                      <p className="font-medium">{selectedData.signatureInfo.penatuaKolom || '-'}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Diaken:</span>
+                      <p className="font-medium">{selectedData.signatureInfo.diakenKolom || '-'}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Ketua BPMJ:</span>
+                      <p className="font-medium">{selectedData.signatureInfo.ketuaBPMJ || '-'}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={() => setViewDialogOpen(false)}>
+                Tutup
+              </Button>
+              {selectedData && (
+                <Button onClick={() => loadDataToEdit(selectedData)} className="bg-green-600 hover:bg-green-700">
+                  <FileText className="h-4 w-4 mr-2" />
+                  Edit Data
+                </Button>
+              )}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-red-600">
+                <AlertCircle className="h-5 w-5" />
+                Konfirmasi Hapus
+              </DialogTitle>
+              <DialogDescription>
+                Apakah Anda yakin ingin menghapus data ini? Tindakan ini tidak dapat dibatalkan.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+                Batal
+              </Button>
+              <Button 
+                variant="destructive" 
+                onClick={() => dataToDelete && deleteData(dataToDelete)}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Hapus
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Print Version */}
         <div className="hidden print:block">
           <div className="text-center mb-8">
             <h1 className="text-2xl font-bold">FORMULIR SENSUS WARGA GEREJA MASEHI INJILI DI MINAHASA</h1>
@@ -954,25 +1385,6 @@ export default function SensusJemaatPage() {
               ))}
             </TableBody>
           </Table>
-
-          <div className="mt-8 flex justify-around text-center">
-            <div>
-              <p>Pemberi Data</p>
-              <p className="mt-12 border-t border-black pt-2">{signatureInfo.pemberiData || '................'}</p>
-            </div>
-            <div>
-              <p>Penatua Kolom</p>
-              <p className="mt-12 border-t border-black pt-2">{signatureInfo.penatuaKolom || '................'}</p>
-            </div>
-            <div>
-              <p>Diaken Kolom</p>
-              <p className="mt-12 border-t border-black pt-2">{signatureInfo.diakenKolom || '................'}</p>
-            </div>
-            <div>
-              <p>Ketua BPMJ</p>
-              <p className="mt-12 border-t border-black pt-2">{signatureInfo.ketuaBPMJ || '................'}</p>
-            </div>
-          </div>
         </div>
       </main>
 
