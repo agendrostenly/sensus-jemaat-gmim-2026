@@ -1,141 +1,131 @@
-# 🚀 Welcome to Z.ai Code Scaffold
+# 📋 Formulir Sensus Jemaat GMIM 2026
 
-A modern, production-ready web application scaffold powered by cutting-edge technologies, designed to accelerate your development with [Z.ai](https://chat.z.ai)'s AI-powered coding assistance.
+Website dinamis untuk pengisian formulir sensus warga Gereja Masehi Injili di Minahasa (GMIM) Tahun 2026.
 
-## ✨ Technology Stack
+## ✨ Fitur Utama
 
-This scaffold provides a robust foundation built with:
+### 📝 Informasi Keluarga
+- Kolom (1-20)
+- Nama Keluarga
+- Nomor Kartu Keluarga (KK)
+- Tanggal Nikah
+- No. Surat Nikah
+- Pendeta Peneguh Nikah
+- Alamat Rumah Tinggal
+- Penghasilan Bulanan
 
-### 🎯 Core Framework
-- **⚡ Next.js 16** - The React framework for production with App Router
-- **📘 TypeScript 5** - Type-safe JavaScript for better developer experience
-- **🎨 Tailwind CSS 4** - Utility-first CSS framework for rapid UI development
+### 👨‍👩‍👧‍👦 Data Anggota Keluarga
+- Form dinamis untuk 1-8 anggota keluarga
+- NIK (16 digit)
+- Nama Lengkap
+- Jenis Kelamin
+- Tempat & Tanggal Lahir
+- Hubungan Keluarga
+- Status Pernikahan
+- Pekerjaan
+- Golongan Darah
+- Pendidikan Terakhir
+- No. Telepon/WA
 
-### 🧩 UI Components & Styling
-- **🧩 shadcn/ui** - High-quality, accessible components built on Radix UI
-- **🎯 Lucide React** - Beautiful & consistent icon library
-- **🌈 Framer Motion** - Production-ready motion library for React
-- **🎨 Next Themes** - Perfect dark mode in 2 lines of code
+### ⛪ Data Baptis & SIDI
+- Status Baptis (Y/N)
+- No. Surat Baptis
+- Tanggal & Pendeta Baptis
+- Gereja/Jemaat Baptis
+- Status SIDI (Y/N)
+- No. Surat SIDI
+- Tanggal & Pendeta SIDI
+- Gereja/Jemaat SIDI
+- Domisili & Keterangan
 
-### 📋 Forms & Validation
-- **🎣 React Hook Form** - Performant forms with easy validation
-- **✅ Zod** - TypeScript-first schema validation
+### 💾 Fitur Tambahan
+- **Simpan** - Menyimpan data ke localStorage browser
+- **Muat** - Memuat data yang tersimpan
+- **Cetak** - Mencetak formulir (format landscape A4)
+- **Reset** - Menghapus semua data
 
-### 🔄 State Management & Data Fetching
-- **🐻 Zustand** - Simple, scalable state management
-- **🔄 TanStack Query** - Powerful data synchronization for React
-- **🌐 Fetch** - Promise-based HTTP request
+## 🛠️ Teknologi
 
-### 🗄️ Database & Backend
-- **🗄️ Prisma** - Next-generation TypeScript ORM
-- **🔐 NextAuth.js** - Complete open-source authentication solution
-
-### 🎨 Advanced UI Features
-- **📊 TanStack Table** - Headless UI for building tables and datagrids
-- **🖱️ DND Kit** - Modern drag and drop toolkit for React
-- **📊 Recharts** - Redefined chart library built with React and D3
-- **🖼️ Sharp** - High performance image processing
-
-### 🌍 Internationalization & Utilities
-- **🌍 Next Intl** - Internationalization library for Next.js
-- **📅 Date-fns** - Modern JavaScript date utility library
-- **🪝 ReactUse** - Collection of essential React hooks for modern development
-
-## 🎯 Why This Scaffold?
-
-- **🏎️ Fast Development** - Pre-configured tooling and best practices
-- **🎨 Beautiful UI** - Complete shadcn/ui component library with advanced interactions
-- **🔒 Type Safety** - Full TypeScript configuration with Zod validation
-- **📱 Responsive** - Mobile-first design principles with smooth animations
-- **🗄️ Database Ready** - Prisma ORM configured for rapid backend development
-- **🔐 Auth Included** - NextAuth.js for secure authentication flows
-- **📊 Data Visualization** - Charts, tables, and drag-and-drop functionality
-- **🌍 i18n Ready** - Multi-language support with Next Intl
-- **🚀 Production Ready** - Optimized build and deployment settings
-- **🤖 AI-Friendly** - Structured codebase perfect for AI assistance
+- **Next.js 16** - React framework dengan App Router
+- **TypeScript** - Type-safe development
+- **Tailwind CSS 4** - Utility-first styling
+- **shadcn/ui** - Komponen UI berkualitas tinggi
+- **Lucide React** - Icon library
 
 ## 🚀 Quick Start
 
 ```bash
 # Install dependencies
-bun install
+npm install
 
 # Start development server
-bun run dev
+npm run dev
 
 # Build for production
-bun run build
+npm run build
 
 # Start production server
-bun start
+npm start
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to see your application running.
+Buka [http://localhost:3000](http://localhost:3000) untuk melihat aplikasi.
 
-## 🤖 Powered by Z.ai
+## 📦 Deployment ke Vercel
 
-This scaffold is optimized for use with [Z.ai](https://chat.z.ai) - your AI assistant for:
+### Cara 1: Via GitHub (Rekomendasi)
 
-- **💻 Code Generation** - Generate components, pages, and features instantly
-- **🎨 UI Development** - Create beautiful interfaces with AI assistance  
-- **🔧 Bug Fixing** - Identify and resolve issues with intelligent suggestions
-- **📝 Documentation** - Auto-generate comprehensive documentation
-- **🚀 Optimization** - Performance improvements and best practices
+1. Push project ke GitHub
+2. Login ke [vercel.com](https://vercel.com)
+3. Klik "Add New..." → "Project"
+4. Pilih repository
+5. Klik "Deploy"
 
-Ready to build something amazing? Start chatting with Z.ai at [chat.z.ai](https://chat.z.ai) and experience the future of AI-powered development!
+### Cara 2: Via CLI
 
-## 📁 Project Structure
+```bash
+# Install Vercel CLI
+npm install -g vercel
+
+# Login
+vercel login
+
+# Deploy
+vercel --prod
+```
+
+📖 Lihat [DEPLOYMENT.md](./DEPLOYMENT.md) untuk panduan lengkap.
+
+## 📁 Struktur Project
 
 ```
 src/
-├── app/                 # Next.js App Router pages
-├── components/          # Reusable React components
-│   └── ui/             # shadcn/ui components
-├── hooks/              # Custom React hooks
-└── lib/                # Utility functions and configurations
+├── app/
+│   ├── page.tsx          # Halaman utama
+│   ├── layout.tsx        # Layout
+│   └── globals.css       # Styles & print CSS
+├── components/ui/        # UI Components (shadcn)
+└── lib/                  # Utilities
 ```
 
-## 🎨 Available Features & Components
+## 🖨️ Print Support
 
-This scaffold includes a comprehensive set of modern web development tools:
+Website mendukung pencetakan langsung ke format A4 Landscape:
+- Header dengan logo GMIM
+- Tabel data keluarga
+- Tabel data anggota
+- Tanda tangan
 
-### 🧩 UI Components (shadcn/ui)
-- **Layout**: Card, Separator, Aspect Ratio, Resizable Panels
-- **Forms**: Input, Textarea, Select, Checkbox, Radio Group, Switch
-- **Feedback**: Alert, Toast (Sonner), Progress, Skeleton
-- **Navigation**: Breadcrumb, Menubar, Navigation Menu, Pagination
-- **Overlay**: Dialog, Sheet, Popover, Tooltip, Hover Card
-- **Data Display**: Badge, Avatar, Calendar
+## 🌐 Browser Support
 
-### 📊 Advanced Data Features
-- **Tables**: Powerful data tables with sorting, filtering, pagination (TanStack Table)
-- **Charts**: Beautiful visualizations with Recharts
-- **Forms**: Type-safe forms with React Hook Form + Zod validation
+- Chrome (recommended)
+- Firefox
+- Safari
+- Edge
 
-### 🎨 Interactive Features
-- **Animations**: Smooth micro-interactions with Framer Motion
-- **Drag & Drop**: Modern drag-and-drop functionality with DND Kit
-- **Theme Switching**: Built-in dark/light mode support
+## 📄 License
 
-### 🔐 Backend Integration
-- **Authentication**: Ready-to-use auth flows with NextAuth.js
-- **Database**: Type-safe database operations with Prisma
-- **API Client**: HTTP requests with Fetch + TanStack Query
-- **State Management**: Simple and scalable with Zustand
-
-### 🌍 Production Features
-- **Internationalization**: Multi-language support with Next Intl
-- **Image Optimization**: Automatic image processing with Sharp
-- **Type Safety**: End-to-end TypeScript with Zod validation
-- **Essential Hooks**: 100+ useful React hooks with ReactUse for common patterns
-
-## 🤝 Get Started with Z.ai
-
-1. **Clone this scaffold** to jumpstart your project
-2. **Visit [chat.z.ai](https://chat.z.ai)** to access your AI coding assistant
-3. **Start building** with intelligent code generation and assistance
-4. **Deploy with confidence** using the production-ready setup
+MIT License - GMIM 2026
 
 ---
 
-Built with ❤️ for the developer community. Supercharged by [Z.ai](https://chat.z.ai) 🚀
+Built with ❤️ for GMIM community
