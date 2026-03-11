@@ -120,3 +120,68 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Print Styles */
+@media print {
+  body {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  
+  .print\:hidden {
+    display: none !important;
+  }
+  
+  .print\:block {
+    display: block !important;
+  }
+  
+  .print\:bg-white {
+    background-color: white !important;
+  }
+  
+  .print\:text-black {
+    color: black !important;
+  }
+  
+  .print\:bg-gray-100 {
+    background-color: #f3f4f6 !important;
+  }
+  
+  .print\:text-gray-900 {
+    color: #111827 !important;
+  }
+  
+  .print\:text-gray-600 {
+    color: #4b5563 !important;
+  }
+  
+  .print\:bg-blue-100 {
+    background-color: #dbeafe !important;
+  }
+  
+  .print\:text-blue-800 {
+    color: #1e40af !important;
+  }
+  
+  .print\:text-blue-700 {
+    color: #1d4ed8 !important;
+  }
+  
+  .print\:bg-gray-200 {
+    background-color: #e5e7eb !important;
+  }
+  
+  .print\:flex-col {
+    flex-direction: column !important;
+  }
+  
+  .print\:gap-4 {
+    gap: 1rem !important;
+  }
+  
+  @page {
+    margin: 1cm;
+    size: A4 landscape;
+  }
+}
